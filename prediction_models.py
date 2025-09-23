@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 import os
+import feature_engineering
 
 def analyse_frequence(historique_tirages: list[data_manager.Tirage]):
     """
@@ -50,15 +51,33 @@ class ComiteDeModelesML:
         """
         Extrait et décale les données X (features) et y (targets) pour l'entraînement,
         en s'assurant qu'il n'y a pas de fuite de données du futur.
+        Cette version est ENRICHIE avec de nouvelles features.
         """
+        # 1. Création des données de base (comme avant)
         boules_df = pd.DataFrame([t.numeros for t in historique_tirages], columns=[f'boule_{i}' for i in range(1, 6)])
         etoiles_df = pd.DataFrame([t.etoiles for t in historique_tirages], columns=[f'etoile_{i}' for i in range(1, 3)])
-        
+
+        # Données de base des tirages N-1, N-2, etc.
+        X_base = pd.concat([boules_df, etoiles_df], axis=1)
+
+        # 2. Enrichissement des données avec notre nouveau module
+        features_additionnelles = feature_engineering.enrichir_donnees(historique_tirages)
+
+        # 3. Combinaison des features
+        # On combine les données de base avec les nouvelles features
+        X_complet = pd.concat([X_base, features_additionnelles], axis=1)
+
+        # 4. Décalage temporel pour éviter la fuite de données (comme avant)
         # X: Les données du passé (tous les tirages sauf le dernier)
-        X = pd.concat([boules_df, etoiles_df], axis=1).iloc[:-1]
+        X = X_complet.iloc[:-1]
+
         # y_df: Les solutions du futur (tous les tirages sauf le premier)
+        # La cible reste la même : les boules et étoiles du tirage suivant.
         y_df = pd.concat([boules_df, etoiles_df], axis=1).iloc[1:]
-        
+
+        # Les colonnes de y_df doivent être renommées pour correspondre à leur usage
+        y_df = y_df.reset_index(drop=True)
+
         return X, y_df
 
     def entrainer(self, historique_tirages: list[data_manager.Tirage]):

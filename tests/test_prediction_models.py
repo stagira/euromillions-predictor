@@ -57,5 +57,5 @@ def test_preparation_donnees_anti_fuite():
     # Données attendues pour y (targets)
     ligne_y_attendue = [2,2,2,2,2,2,2]
 
-    assert X.iloc[0].tolist() == ligne_X_attendue, "La première ligne de X devrait être les données du tirage le plus récent (t3)"
-    assert y_df.iloc[0].tolist() == ligne_y_attendue, "La première ligne de y devrait être les données du deuxième tirage (t2)"
+    assert X.iloc[0].tolist()[:7] == ligne_X_attendue, "La première ligne de X devrait être les données du tirage le plus récent (t3)"
+    assert y_df.iloc[0].tolist()[:7] == ligne_y_attendue, "La première ligne de y devrait être les données du deuxième tirage (t2)"
