@@ -5,10 +5,28 @@ import prediction_models
 import evaluation
 from tqdm import tqdm
 
-def lancer_backtest(modele_a_tester, historique_complet: list[data_manager.Tirage], nombre_de_tests: int):
-    """
-    Lance une simulation de backtesting pour un MODÈLE DONNÉ.
-    Retourne les scores moyens pour les boules et les étoiles.
+def lancer_backtest(
+    modele_a_tester: prediction_models.ComiteDeModelesML,
+    historique_complet: list[data_manager.Tirage],
+    nombre_de_tests: int
+) -> tuple[float, float]:
+    """Lance une simulation de backtesting pour évaluer un modèle.
+
+    Cette fonction simule des prédictions sur une période passée. Pour chaque
+    pas de temps, elle entraîne le modèle sur un historique qui s'arrête avant
+    le tirage à prédire, fait une prédiction, et la compare au résultat réel.
+
+    Args:
+        modele_a_tester (prediction_models.ComiteDeModelesML): L'instance du
+            modèle à évaluer.
+        historique_complet (list[data_manager.Tirage]): L'historique complet
+            des tirages, du plus récent au plus ancien.
+        nombre_de_tests (int): Le nombre de tirages récents à utiliser pour
+            la simulation.
+
+    Returns:
+        tuple[float, float]: Un tuple contenant le score moyen pour les boules
+        et le score moyen pour les étoiles sur l'ensemble de la simulation.
     """
     print(f"\n--- 🚀 Lancement du Backtesting sur les {nombre_de_tests} derniers tirages ---")
     scores_boules = []

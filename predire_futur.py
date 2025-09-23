@@ -3,9 +3,17 @@ import joblib
 import data_manager
 import os
 
-def lancer_prediction():
-    """
-    Charge le modèle entraîné et prédit le prochain tirage de l'Euromillions.
+def lancer_prediction() -> None:
+    """Charge le modèle de prédiction final et l'utilise pour prédire le prochain tirage.
+
+    Ce script est le point d'entrée pour obtenir une nouvelle prédiction. Il
+    s'assure que le modèle entraîné ('modele_final_entraine.joblib') et les
+    données historiques ('euromillions_results.csv') sont présents. Ensuite,
+    il charge le modèle, récupère le dernier tirage connu et utilise le modèle
+    pour prédire la combinaison suivante.
+
+    Les résultats sont affichés sur la sortie standard. Le script s'arrêtera
+    avec un message d'erreur si les fichiers requis ne sont pas trouvés.
     """
     print("--- 🔮 Lancement du Script de Prédiction ---")
 

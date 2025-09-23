@@ -8,15 +8,17 @@ import joblib
 import os
 import feature_engineering
 
-def analyse_frequence(historique_tirages: list[data_manager.Tirage]):
-    """
-    Analyse la fréquence de sortie de chaque numéro dans l'historique.
+def analyse_frequence(historique_tirages: list[data_manager.Tirage]) -> list[tuple[int, int]]:
+    """Analyse la fréquence de sortie de chaque numéro dans un historique.
 
     Args:
-        historique_tirages (list): Une liste d'objets Tirage.
+        historique_tirages (list[data_manager.Tirage]): Une liste d'objets
+            Tirage représentant l'historique à analyser.
 
     Returns:
-        list: Une liste de tuples (numero, occurrences) des 5 numéros les plus fréquents.
+        list[tuple[int, int]]: Une liste de tuples, où chaque tuple contient
+        un numéro et son nombre d'occurrences. La liste est triée par ordre
+        décroissant de fréquence.
     """
     tous_les_numeros = []
     for tirage in historique_tirages:
@@ -33,13 +35,24 @@ def analyse_frequence(historique_tirages: list[data_manager.Tirage]):
 # Dans prediction_models.py
 
 class ComiteDeModelesML:
+    """Un comité de modèles de Machine Learning pour prédire les tirages.
+
+    Cette classe gère un ensemble de modèles RandomForest, un pour chaque boule
+    et étoile à prédire. Elle encapsule la logique d'entraînement, de prédiction,
+    de gestion de cache des modèles entraînés, et de préparation des données
+    en évitant les fuites d'information du futur.
     """
-    Encapsule deux comités de modèles (un pour les boules, un pour les étoiles),
-    incluant une logique de cache et une préparation de données anti-fuite.
-    """
-    def __init__(self, n_estimators=50, max_depth=None, random_state=42): # <-- MODIFIÉ
-        """
-        Le constructeur accepte maintenant des hyperparamètres pour le RandomForest.
+    def __init__(self, n_estimators: int = 50, max_depth: int | None = None, random_state: int = 42):
+        """Initialise le comité de modèles avec les hyperparamètres spécifiés.
+
+        Args:
+            n_estimators (int, optional): Le nombre d'arbres dans la forêt.
+                Defaults to 50.
+            max_depth (int | None, optional): La profondeur maximale des arbres.
+                Si None, les nœuds sont étendus jusqu'à ce que toutes les
+                feuilles soient pures. Defaults to None.
+            random_state (int, optional): Contrôle le caractère aléatoire pour
+                la reproductibilité des résultats. Defaults to 42.
         """
         # Initialisation des modèles avec les hyperparamètres fournis
         # `max_depth=None` signifie que les arbres peuvent grandir autant que nécessaire
@@ -63,11 +76,21 @@ class ComiteDeModelesML:
         if not os.path.exists('model_cache'):
             os.makedirs('model_cache')
 
-    def _preparer_donnees(self, historique_tirages: list[data_manager.Tirage]):
-        """
-        Extrait et décale les données X (features) et y (targets) pour l'entraînement,
-        en s'assurant qu'il n'y a pas de fuite de données du futur.
-        Cette version est ENRICHIE avec de nouvelles features.
+    def _preparer_donnees(self, historique_tirages: list[data_manager.Tirage]) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Prépare les données pour l'entraînement en features (X) et cibles (y).
+
+        Cette méthode cruciale construit le jeu de données en s'assurant qu'il
+        n'y a aucune fuite d'information du futur. Pour un tirage N, les
+        caractéristiques (X) sont construites à partir des tirages N-1, N-2, etc.,
+        et la cible (y) est le résultat du tirage N.
+
+        Args:
+            historique_tirages (list[data_manager.Tirage]): L'historique complet
+                des tirages, du plus récent au plus ancien.
+
+        Returns:
+            tuple[pd.DataFrame, pd.DataFrame]: Un tuple contenant le DataFrame
+            des caractéristiques (X) et le DataFrame des cibles (y).
         """
         # 1. Création des données de base (comme avant)
         boules_df = pd.DataFrame([t.numeros for t in historique_tirages], columns=[f'boule_{i}' for i in range(1, 6)])
@@ -96,9 +119,16 @@ class ComiteDeModelesML:
 
         return X, y_df
 
-    def entrainer(self, historique_tirages: list[data_manager.Tirage]):
-        """
-        Entraîne les modèles, en utilisant un cache pour éviter les recalculs.
+    def entrainer(self, historique_tirages: list[data_manager.Tirage]) -> None:
+        """Entraîne tous les modèles du comité sur l'historique fourni.
+
+        La méthode utilise un système de cache pour éviter de ré-entraîner des
+        modèles sur un historique déjà vu. Le nom du fichier de cache est
+        dérivé de la taille de l'historique et de la date du premier tirage.
+
+        Args:
+            historique_tirages (list[data_manager.Tirage]): La liste complète
+                des objets Tirage à utiliser pour l'entraînement.
         """
         # Création d'un nom de fichier unique pour le cache
         nom_fichier_modele = f"model_cache/model_{len(historique_tirages)}_{str(historique_tirages[0].date)}.joblib"
@@ -132,9 +162,25 @@ class ComiteDeModelesML:
         joblib.dump(modeles_a_sauver, nom_fichier_modele)
     
 
-    def predire(self, dernier_tirage: data_manager.Tirage, historique_passe: list[data_manager.Tirage]):
-        """
-        Prédit un tirage complet en se basant sur le dernier tirage connu ET son historique.
+    def predire(self, dernier_tirage: data_manager.Tirage, historique_passe: list[data_manager.Tirage]) -> tuple[list[int], list[int]]:
+        """Prédit un tirage complet et garanti sans doublons.
+
+        Cette méthode utilise le dernier tirage connu et son historique pour
+        construire les caractéristiques nécessaires à la prédiction. Elle invoque
+        ensuite une logique de résolution de conflits pour s'assurer que les
+        numéros prédits (boules et étoiles) sont uniques.
+
+        Args:
+            dernier_tirage (data_manager.Tirage): Le dernier tirage connu.
+            historique_passe (list[data_manager.Tirage]): La liste de tous les
+                tirages qui ont précédé le `dernier_tirage`.
+
+        Raises:
+            Exception: Si la méthode est appelée avant que le modèle ne soit entraîné.
+
+        Returns:
+            tuple[list[int], list[int]]: Un tuple contenant deux listes triées :
+            la première pour les 5 boules prédites, la seconde pour les 2 étoiles.
         """
         if not self.est_entraine:
             raise Exception("Le modèle doit être entraîné avant de pouvoir faire une prédiction.")
@@ -160,11 +206,76 @@ class ComiteDeModelesML:
         ordre_colonnes = self.modeles_boules['boule_1'].feature_names_in_
         donnees_a_predire = donnees_a_predire[ordre_colonnes]
 
-        # 5. Prédiction
-        pred_boules = [self.modeles_boules[f'boule_{i}'].predict(donnees_a_predire)[0] for i in range(1, 6)]
-        pred_boules.sort()
+        # 5. Prédiction avec logique anti-doublons
+        pred_boules = self._predire_et_resoudre_conflits(self.modeles_boules, donnees_a_predire, 5)
+        pred_etoiles = self._predire_et_resoudre_conflits(self.modeles_etoiles, donnees_a_predire, 2)
 
-        pred_etoiles = [self.modeles_etoiles[f'etoile_{i}'].predict(donnees_a_predire)[0] for i in range(1, 3)]
-        pred_etoiles.sort()
+        return sorted(pred_boules), sorted(pred_etoiles)
 
-        return pred_boules, pred_etoiles
+    def _predire_et_resoudre_conflits(self, modeles: dict, donnees_a_predire: pd.DataFrame, n_predictions: int) -> list[int]:
+        """Génère des prédictions uniques à partir d'un comité de modèles.
+
+        Cette fonction utilise `predict_proba` pour obtenir les probabilités de
+        chaque numéro. Elle sélectionne initialement le meilleur choix pour chaque
+        modèle, puis entre dans une boucle de validation pour résoudre les
+        conflits (doublons). Si un doublon est détecté, le modèle le moins
+        confiant pour ce choix est forcé de passer à son alternative suivante,
+        jusqu'à ce que toutes les prédictions soient uniques.
+
+        Args:
+            modeles (dict): Le dictionnaire de modèles à utiliser (boules ou étoiles).
+            donnees_a_predire (pd.DataFrame): Le DataFrame contenant les
+                caractéristiques pour la prédiction.
+            n_predictions (int): Le nombre de prédictions uniques attendues.
+
+        Returns:
+            list[int]: Une liste de `n_predictions` numéros uniques.
+        """
+        # Étape 1: Obtenir les probabilités pour chaque modèle
+        probas_par_modele = {}
+        for nom, modele in modeles.items():
+            # `predict_proba` renvoie une liste de listes de probas, une pour chaque classe
+            probabilities = modele.predict_proba(donnees_a_predire)[0]
+            # On associe chaque proba à sa classe (le numéro)
+            classes = modele.classes_
+            probas_avec_classes = sorted(zip(probabilities, classes), reverse=True)
+            probas_par_modele[nom] = probas_avec_classes
+
+        # Étape 2: Initialiser la prédiction avec le meilleur choix de chaque modèle
+        predictions = {nom: probas[0][1] for nom, probas in probas_par_modele.items()}
+        indices_choix = {nom: 0 for nom in modeles.keys()}
+
+        # Étape 3: Boucler jusqu'à ce qu'il n'y ait plus de doublons
+        while len(set(predictions.values())) < n_predictions:
+            # Trouver les numéros dupliqués
+            comptes = Counter(predictions.values())
+            doublons = {numero for numero, compte in comptes.items() if compte > 1}
+
+            for doublon in doublons:
+                # Identifier les modèles qui ont prédit ce doublon
+                modeles_en_conflit = [nom for nom, pred in predictions.items() if pred == doublon]
+
+                # Trouver le modèle le moins confiant parmi ceux en conflit
+                probabilite_la_plus_basse = float('inf')
+                modele_a_changer = None
+                for nom_modele in modeles_en_conflit:
+                    # On récupère la proba du choix actuel pour ce modèle
+                    index_actuel = indices_choix[nom_modele]
+                    proba_actuelle = probas_par_modele[nom_modele][index_actuel][0]
+                    if proba_actuelle < probabilite_la_plus_basse:
+                        probabilite_la_plus_basse = proba_actuelle
+                        modele_a_changer = nom_modele
+
+                # Faire passer ce modèle à son choix suivant
+                if modele_a_changer:
+                    indices_choix[modele_a_changer] += 1
+                    nouvel_index = indices_choix[modele_a_changer]
+                    # S'assurer qu'on ne sort pas de la liste des choix possibles
+                    if nouvel_index < len(probas_par_modele[modele_a_changer]):
+                        predictions[modele_a_changer] = probas_par_modele[modele_a_changer][nouvel_index][1]
+                    else:
+                        # Cas très rare: on est à court de choix, on brise pour éviter une boucle infinie
+                        # Une meilleure gestion serait de choisir un numéro aléatoire non présent
+                        break
+
+        return list(predictions.values())
