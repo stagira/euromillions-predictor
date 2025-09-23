@@ -4,7 +4,7 @@ import requests
 from datetime import datetime 
 
 class Tirage:
-    """Représente un seul tirage de l'Euromillions."""
+    """ Représente un seul tirage de l'Euromillions."""
     def __init__(self, date, numeros, etoiles):
         """
         Initialise un objet Tirage.
