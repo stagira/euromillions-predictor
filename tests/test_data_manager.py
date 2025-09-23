@@ -1,11 +1,14 @@
 # tests/test_data_manager.py
 import sys
 import os
+import prediction_models 
 
 # Ajoute le dossier parent au chemin pour que Python trouve data_manager
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from data_manager import Tirage
+import data_manager
+from prediction_models import analyse_frequence
+
 
 def test_creation_tirage():
     """Vérifie que les données sont correctement assignées lors de la création d'un objet Tirage."""
@@ -15,7 +18,7 @@ def test_creation_tirage():
     etoiles_test = [6, 7]
 
     # 2. Action : création de l'objet
-    mon_tirage = Tirage(date=date_test, numeros=numeros_test, etoiles=etoiles_test)
+    mon_tirage = data_manager.Tirage(date=date_test, numeros=numeros_test, etoiles=etoiles_test)
 
     # 3. Vérification : on affirme que les valeurs sont correctes
     assert mon_tirage.date == date_test
