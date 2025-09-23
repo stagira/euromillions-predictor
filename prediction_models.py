@@ -4,6 +4,8 @@ import data_manager
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+import joblib
+import os
 
 def analyse_frequence(historique_tirages: list[data_manager.Tirage]):
     """
@@ -27,53 +29,90 @@ def analyse_frequence(historique_tirages: list[data_manager.Tirage]):
 
     return numeros_chauds
 
-class ModeleRandomForest:
+# Dans prediction_models.py
+
+class ComiteDeModelesML:
     """
-    Encapsule un comité de 5 modèles RandomForest pour prédire un tirage complet.
+    Encapsule deux comités de modèles (un pour les boules, un pour les étoiles),
+    incluant une logique de cache et une préparation de données anti-fuite.
     """
     def __init__(self):
-        # On crée un dictionnaire pour contenir nos 5 modèles, un par boule
-        self.modeles = {f'boule_{i}': RandomForestClassifier(n_estimators=100, random_state=42) for i in range(1, 6)}
+        # Initialisation des modèles
+        self.modeles_boules = {f'boule_{i}': RandomForestClassifier(n_estimators=50, random_state=42) for i in range(1, 6)}
+        self.modeles_etoiles = {f'etoile_{i}': RandomForestClassifier(n_estimators=50, random_state=42) for i in range(1, 3)}
         self.est_entraine = False
+        
+        # Création du dossier de cache s'il n'existe pas
+        if not os.path.exists('model_cache'):
+            os.makedirs('model_cache')
+
+    def _preparer_donnees(self, historique_tirages: list[data_manager.Tirage]):
+        """
+        Extrait et décale les données X (features) et y (targets) pour l'entraînement,
+        en s'assurant qu'il n'y a pas de fuite de données du futur.
+        """
+        boules_df = pd.DataFrame([t.numeros for t in historique_tirages], columns=[f'boule_{i}' for i in range(1, 6)])
+        etoiles_df = pd.DataFrame([t.etoiles for t in historique_tirages], columns=[f'etoile_{i}' for i in range(1, 3)])
+        
+        # X: Les données du passé (tous les tirages sauf le dernier)
+        X = pd.concat([boules_df, etoiles_df], axis=1).iloc[:-1]
+        # y_df: Les solutions du futur (tous les tirages sauf le premier)
+        y_df = pd.concat([boules_df, etoiles_df], axis=1).iloc[1:]
+        
+        return X, y_df
 
     def entrainer(self, historique_tirages: list[data_manager.Tirage]):
         """
-        Entraîne les 5 modèles, chacun sur sa boule respective.
+        Entraîne les modèles, en utilisant un cache pour éviter les recalculs.
         """
-        print("\n🧠 Entraînement du comité de 5 modèles de Machine Learning...")
+        # Création d'un nom de fichier unique pour le cache
+        nom_fichier_modele = f"model_cache/model_{len(historique_tirages)}_{str(historique_tirages[0].date)}.joblib"
 
-        numeros_df = pd.DataFrame([t.numeros for t in historique_tirages], 
-                                  columns=['boule_1', 'boule_2', 'boule_3', 'boule_4', 'boule_5'])
+        # 1. Vérification du cache
+        if os.path.exists(nom_fichier_modele):
+            print(f"🧠 Chargement du comité de modèles depuis le cache : {nom_fichier_modele}")
+            modeles_charges = joblib.load(nom_fichier_modele)
+            self.modeles_boules = modeles_charges['boules']
+            self.modeles_etoiles = modeles_charges['etoiles']
+            self.est_entraine = True
+            return
 
-        X = numeros_df[:-1]
+        # 2. Préparation des données (si pas dans le cache)
+        X, y_df = self._preparer_donnees(historique_tirages)
 
-        # On entraîne chaque modèle sur sa cible
+        # 3. Entraînement des modèles
         for i in range(1, 6):
             nom_boule = f'boule_{i}'
-            print(f"   - Entraînement du spécialiste pour {nom_boule}...")
-            y = numeros_df[nom_boule][1:]
-            self.modeles[nom_boule].fit(X, y)
+            self.modeles_boules[nom_boule].fit(X, y_df[nom_boule])
+
+        for i in range(1, 3):
+            nom_etoile = f'etoile_{i}'
+            self.modeles_etoiles[nom_etoile].fit(X, y_df[nom_etoile])
         
         self.est_entraine = True
-        print("✅ Comité de modèles entraîné avec succès !")
 
+        # 4. Sauvegarde dans le cache
+        print(f"💾 Sauvegarde du modèle dans le cache : {nom_fichier_modele}")
+        modeles_a_sauver = {'boules': self.modeles_boules, 'etoiles': self.modeles_etoiles}
+        joblib.dump(modeles_a_sauver, nom_fichier_modele)
+    
     def predire(self, dernier_tirage: data_manager.Tirage):
         """
-        Combine les prédictions des 5 modèles pour un tirage complet.
+        Prédit un tirage complet (5 boules + 2 étoiles) en se basant sur le dernier tirage connu.
         """
         if not self.est_entraine:
-            return "Erreur: Le modèle doit être entraîné."
+            raise Exception("Le modèle doit être entraîné avant de pouvoir faire une prédiction.")
 
-        donnees_a_predire = pd.DataFrame([dernier_tirage.numeros], 
-                                         columns=['boule_1', 'boule_2', 'boule_3', 'boule_4', 'boule_5'])
+        # Préparation des données du dernier tirage pour la prédiction
+        donnees_a_predire = pd.DataFrame([dernier_tirage.numeros + dernier_tirage.etoiles], 
+                                         columns=[f'boule_{i}' for i in range(1, 6)] + [f'etoile_{i}' for i in range(1, 3)])
         
-        prediction_finale = []
-        # Chaque modèle spécialiste fait sa propre prédiction
-        for i in range(1, 6):
-            nom_boule = f'boule_{i}'
-            prediction = self.modeles[nom_boule].predict(donnees_a_predire)
-            prediction_finale.append(prediction[0])
-            
-        # On trie les numéros pour un affichage plus propre
-        prediction_finale.sort()
-        return f"Le comité de modèles prédit les 5 numéros suivants : {prediction_finale}"
+        # Prédiction des boules
+        pred_boules = [self.modeles_boules[f'boule_{i}'].predict(donnees_a_predire)[0] for i in range(1, 6)]
+        pred_boules.sort()
+
+        # Prédiction des étoiles
+        pred_etoiles = [self.modeles_etoiles[f'etoile_{i}'].predict(donnees_a_predire)[0] for i in range(1, 3)]
+        pred_etoiles.sort()
+
+        return pred_boules, pred_etoiles
