@@ -1,67 +1,80 @@
 # main.py
-import argparse
 import data_manager
 import backtest
 import prediction_models
+import itertools # On importe un outil pour nous aider à créer les combinaisons
+import json     # <--- AJOUTER pour la sauvegarde des paramètres
+import joblib   # <--- AJOUTER pour la sauvegarde du modèle
 
-def lancer_prediction():
-    """
-    Orchestre l'entraînement d'un modèle sur tout l'historique
-    et la prédiction du prochain tirage.
-    """
-    print("--- Lancement du mode Prédiction ---")
-    historique = data_manager.charger_donnees()
-    if not historique:
-        print("❌ Impossible de charger l'historique.")
-        return
+print("--- Démarrage du Prédicteur Euromillions ---")
+historique = data_manager.charger_donnees()
+print(f"✅ {len(historique)} tirages ont été chargés.")
 
-    # Le dernier tirage connu sert de base à la prédiction
-    dernier_tirage = historique[0]
-    # Tout l'historique sert à l'entraînement
-    donnees_entrainement = historique
+if not historique or len(historique) < 250:
+    print("Pas assez de données pour lancer une simulation.")
+else:
+    # --- Début de la boucle d'optimisation (le "Tournoi") ---
+    print("\n--- 🏆 Lancement de l'optimisation des hyperparamètres ---")
 
-    print(f"🤖 Entraînement du modèle sur {len(donnees_entrainement)} tirages historiques...")
-    modele = prediction_models.ComiteDeModelesML()
-    modele.entrainer(donnees_entrainement)
+    # 1. Définir la grille des paramètres à tester
+    parametres_a_tester = {
+        'n_estimators': [50, 100],      # Nombre d'arbres
+        'max_depth': [10, 20, None]       # Profondeur max des arbres (None = illimité)
+    }
 
-    print("\n🔮 Prédiction pour le prochain tirage :")
-    pred_boules, pred_etoiles = modele.predire(dernier_tirage)
-    print(f"   - Boules  : {pred_boules}")
-    print(f"   - Étoiles : {pred_etoiles}")
+    # Préparation pour stocker les résultats
+    meilleurs_parametres = None
+    meilleur_score = -1
 
-def lancer_le_backtest(nombre_de_tests: int):
-    """
-    Orchestre le lancement du backtest.
-    """
-    print("--- Lancement du mode Backtest ---")
-    historique = data_manager.charger_donnees()
-    if len(historique) < nombre_de_tests + 200:
-        print(f"❌ Pas assez de données pour un backtest de {nombre_de_tests} tirages.")
-        return
-    backtest.lancer_backtest(historique, nombre_de_tests)
+    # Créer toutes les combinaisons possibles de paramètres
+    keys, values = zip(*parametres_a_tester.items())
+    combinaisons = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
-def main():
-    """
-    Fonction principale qui analyse les arguments de la ligne de commande.
-    """
-    parser = argparse.ArgumentParser(
-        description="Prédicteur Euromillions et outil de backtesting.",
-        epilog="Exemple d'utilisation : py main.py --predict"
-    )
-    parser.add_argument('--predict', action='store_true', help="Entraîne un modèle sur tout l'historique et prédit le prochain tirage.")
-    parser.add_argument('--backtest', type=int, metavar='N', help="Lance un backtest sur les N derniers tirages.")
+    print(f"{len(combinaisons)} combinaisons de paramètres à tester...")
 
-    args = parser.parse_args()
+    # 2. Boucle sur chaque combinaison
+    for params in combinaisons:
+        print(f"\nTest de la combinaison : {params}")
+        
+        # Crée un "champion" avec ces paramètres spécifiques
+        modele_candidat = prediction_models.ComiteDeModelesML(**params)
+        
+        # Lance le backtest pour ce champion
+        score_boules, score_etoiles = backtest.lancer_backtest(modele_candidat, historique, 50)
+        
+        print(f"   - Résultat : Score moyen Boules = {score_boules:.2f} / 5")
 
-    if args.predict:
-        lancer_prediction()
-    elif args.backtest:
-        lancer_le_backtest(args.backtest)
-    else:
-        # Action par défaut si aucun argument n'est donné
-        print("Bienvenue ! Veuillez choisir une action : --predict ou --backtest N")
-        parser.print_help()
+        # 3. On garde en mémoire le meilleur
+        if score_boules > meilleur_score:
+            meilleur_score = score_boules
+            meilleurs_parametres = params
+            print(f"   -> ✨ Nouvelle meilleure combinaison trouvée !")
 
-if __name__ == "__main__":
-    # Ce bloc ne s'exécute que si le fichier est lancé directement
-    main()
+    # --- Fin de l'optimisation ---
+    print("\n--- ✅ Optimisation terminée ---")
+    print(f"La meilleure combinaison de paramètres est : {meilleurs_parametres}")
+    print(f"Avec un score moyen de : {meilleur_score:.2f} / 5")
+    
+    # --- Sauvegarde des résultats ---
+    if meilleurs_parametres:
+        print("\n--- 💾 Sauvegarde du meilleur modèle et des paramètres ---")
+
+        # 1. Sauvegarder les meilleurs paramètres dans un fichier JSON
+        with open('meilleurs_parametres.json', 'w') as f:
+            json.dump(meilleurs_parametres, f, indent=4)
+        print("   - Meilleurs paramètres sauvegardés dans 'meilleurs_parametres.json'")
+
+        # 2. Créer le modèle final avec ces paramètres et l'entraîner sur TOUTES les données disponibles
+        print("   - Entraînement du modèle final sur tout l'historique disponible...")
+        modele_final = prediction_models.ComiteDeModelesML(**meilleurs_parametres)
+        
+        # On l'entraîne avec toutes les données qu'on peut, sauf le tout dernier tirage qui servira de point de départ à la prédiction
+        modele_final.entrainer(historique[1:])
+
+        # 3. Sauvegarder l'objet modèle entraîné
+        joblib.dump(modele_final, 'modele_final_entraine.joblib')
+        print("   - Modèle final entraîné et sauvegardé dans 'modele_final_entraine.joblib'")
+
+
+
+print("\n--- Application terminée ---")

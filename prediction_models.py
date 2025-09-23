@@ -37,10 +37,26 @@ class ComiteDeModelesML:
     Encapsule deux comités de modèles (un pour les boules, un pour les étoiles),
     incluant une logique de cache et une préparation de données anti-fuite.
     """
-    def __init__(self):
-        # Initialisation des modèles
-        self.modeles_boules = {f'boule_{i}': RandomForestClassifier(n_estimators=50, random_state=42) for i in range(1, 6)}
-        self.modeles_etoiles = {f'etoile_{i}': RandomForestClassifier(n_estimators=50, random_state=42) for i in range(1, 3)}
+    def __init__(self, n_estimators=50, max_depth=None, random_state=42): # <-- MODIFIÉ
+        """
+        Le constructeur accepte maintenant des hyperparamètres pour le RandomForest.
+        """
+        # Initialisation des modèles avec les hyperparamètres fournis
+        # `max_depth=None` signifie que les arbres peuvent grandir autant que nécessaire
+        self.modeles_boules = {
+            f'boule_{i}': RandomForestClassifier(
+                n_estimators=n_estimators, 
+                max_depth=max_depth,
+                random_state=random_state
+            ) for i in range(1, 6)
+        }
+        self.modeles_etoiles = {
+            f'etoile_{i}': RandomForestClassifier(
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                random_state=random_state
+            ) for i in range(1, 3)
+        }
         self.est_entraine = False
         
         # Création du dossier de cache s'il n'existe pas
@@ -115,22 +131,39 @@ class ComiteDeModelesML:
         modeles_a_sauver = {'boules': self.modeles_boules, 'etoiles': self.modeles_etoiles}
         joblib.dump(modeles_a_sauver, nom_fichier_modele)
     
-    def predire(self, dernier_tirage: data_manager.Tirage):
+
+    def predire(self, dernier_tirage: data_manager.Tirage, historique_passe: list[data_manager.Tirage]):
         """
-        Prédit un tirage complet (5 boules + 2 étoiles) en se basant sur le dernier tirage connu.
+        Prédit un tirage complet en se basant sur le dernier tirage connu ET son historique.
         """
         if not self.est_entraine:
             raise Exception("Le modèle doit être entraîné avant de pouvoir faire une prédiction.")
 
-        # Préparation des données du dernier tirage pour la prédiction
-        donnees_a_predire = pd.DataFrame([dernier_tirage.numeros + dernier_tirage.etoiles], 
-                                         columns=[f'boule_{i}' for i in range(1, 6)] + [f'etoile_{i}' for i in range(1, 3)])
+        # 1. Préparer les données de base du dernier tirage (les 7 numéros)
+        donnees_base = pd.DataFrame([dernier_tirage.numeros + dernier_tirage.etoiles], 
+                                    columns=[f'boule_{i}' for i in range(1, 6)] + [f'etoile_{i}' for i in range(1, 3)])
+
+        # 2. Calculer les features enrichies pour ce tirage en se basant sur le passé
+        # Note : On utilise directement les fonctions de notre module feature_engineering
+        stats = feature_engineering.calculer_stats_tirage(dernier_tirage)
+        ecarts = feature_engineering.calculer_ecarts(historique_passe)
+        freq_chaude = feature_engineering.calculer_frequence_chaude(historique_passe)
         
-        # Prédiction des boules
+        features_additionnelles = pd.DataFrame([{**stats, **ecarts, **freq_chaude}])
+
+        # 3. Combiner les deux pour avoir les 111 colonnes attendues par le modèle
+        donnees_a_predire = pd.concat([donnees_base, features_additionnelles], axis=1)
+        
+        # 4. S'assurer que les colonnes sont dans le même ordre que lors de l'entraînement
+        # (Scikit-learn peut être sensible à l'ordre)
+        # On récupère l'ordre des colonnes du premier modèle entraîné comme référence
+        ordre_colonnes = self.modeles_boules['boule_1'].feature_names_in_
+        donnees_a_predire = donnees_a_predire[ordre_colonnes]
+
+        # 5. Prédiction
         pred_boules = [self.modeles_boules[f'boule_{i}'].predict(donnees_a_predire)[0] for i in range(1, 6)]
         pred_boules.sort()
 
-        # Prédiction des étoiles
         pred_etoiles = [self.modeles_etoiles[f'etoile_{i}'].predict(donnees_a_predire)[0] for i in range(1, 3)]
         pred_etoiles.sort()
 
