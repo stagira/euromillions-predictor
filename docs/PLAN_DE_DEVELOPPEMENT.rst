@@ -112,17 +112,107 @@ Ce document retrace les grandes étapes de la création et de l'amélioration de
 
 Étape 12 : Validation des Prédictions
 -------------------------------------
-* **Objectif** : Garantir que les prédictions générées par le modèle respectent les règles du jeu (ex: pas de numéros dupliqués).
-* **Actions Clés** : Refonte de la méthode ``predire`` pour utiliser ``predict_proba()`` et implémenter une boucle de correction pour assurer l'unicité des numéros.
-* **Concepts Abordés** : Validation et post-traitement des sorties de modèle.
+* **Objectif** : Garantir que les prédictions générées par le modèle respectent les règles fondamentales du jeu (ex: pas de boules ou d'étoiles dupliquées).
+* **Actions Clés** :
+    * Diagnostic : Compréhension que les modèles "spécialistes" pour chaque boule/étoile fonctionnent en isolation et peuvent donc prédire le même numéro.
+    * Refonte de la méthode ``predire`` dans ``prediction_models.py``.
+    * Implémentation d'une logique de correction post-prédiction qui utilise ``predict_proba()`` pour obtenir les probabilités de tous les numéros possibles.
+    * Mise en place d'une boucle de validation qui détecte les doublons et les remplace par le "deuxième meilleur choix" du modèle concerné, jusqu'à ce que la combinaison soit unique.
+* **Concepts Abordés** : Validation et post-traitement des sorties de modèle, Utilisation de ``predict_proba()`` vs ``predict()``.
 
 ---
 
-Étape 14 & 15 & 21 : Documentation Professionnelle et Productivité
------------------------------------------------------------------
-* **Objectif** : Mettre en place un outillage professionnel pour la documentation.
+Étape 13 : Révision des Bonnes Pratiques de Documentation
+---------------------------------------------------------
+* **Objectif** : Consolider les connaissances sur la documentation pour assurer la qualité et la maintenabilité du projet.
 * **Actions Clés** :
-    * Installation de l'extension "autoDocstring" dans VS Code.
-    * Installation et configuration de Sphinx pour générer un site web HTML à partir des docstrings.
-    * Création de ce plan de développement et intégration dans la documentation finale.
-* **Concepts Abordés** : Tooling, Automatisation de la documentation.
+    * Révision de la "Pyramide de la Documentation" :
+        1.  **Niveau 1 (Fondation)** : Les docstrings au format Google directement dans le code.
+        2.  **Niveau 2 (Porte d'Entrée)** : Un fichier ``README.md`` clair et complet.
+        3.  **Niveau 3 (Finition)** : La génération automatique d'un site web de documentation avec Sphinx.
+* **Concepts Abordés** : Qualité logicielle, Documentation as Code.
+
+---
+
+Étape 14 : Productivité de l'IDE
+--------------------------------
+* **Objectif** : Accélérer et standardiser l'écriture de la documentation dans le code.
+* **Actions Clés** :
+    * Installation et configuration de l'extension **"autoDocstring - Python Docstring Generator"** dans VS Code.
+    * Paramétrage de l'extension pour utiliser le format ``google``.
+* **Concepts Abordés** : Outillage de développement (Tooling), Automatisation des tâches répétitives.
+
+---
+
+Étape 15 & 20 : Génération Automatique de la Documentation
+----------------------------------------------------------
+* **Objectif** : Mettre en place un système pour générer un site web professionnel à partir des docstrings du projet.
+* **Actions Clés** :
+    * Installation de Sphinx et des extensions ``furo`` et ``sphinx-autodoc-typehints``.
+    * Initialisation du projet de documentation avec ``sphinx-quickstart``.
+    * Configuration du fichier ``docs/conf.py`` pour lier Sphinx au code source du projet et activer les extensions.
+    * Création des fichiers ``.rst`` pour définir le contenu et la structure du site.
+* **Défis Rencontrés** : Résolution du ``ModuleNotFoundError: No module named 'sklearn'`` en comprenant que Sphinx doit être exécuté avec l'environnement virtuel (``venv``) activé pour avoir accès aux dépendances du projet.
+
+---
+
+Étape 16 & 17 : Maîtrise de la Gestion des Dépendances
+------------------------------------------------------
+* **Objectif** : Comprendre et appliquer la bonne méthode pour installer des bibliothèques dans un projet Python isolé.
+* **Actions Clés** :
+    * Installation de ``scikit-learn`` avec ``pip``.
+    * Mise à jour du fichier ``requirements.txt`` avec la commande ``pip freeze > requirements.txt``.
+* **Défis Rencontrés** : Diagnostic du "mystère de l'installation invisible", en comprenant la différence entre l'environnement Python global et l'environnement virtuel du projet.
+* **Concepts Abordés** : Isolation d'environnement, Reproductibilité des projets.
+
+---
+
+Étape 19 : Diagnostic et Correction du Chemin d'Accès
+------------------------------------------------------
+* **Objectif** : Résoudre les erreurs de terminal liées à des chemins de fichiers incorrects.
+* **Actions Clés** :
+    * Diagnostic de l'erreur ``Le chemin d’accès spécifié est introuvable``.
+    * Utilisation des commandes ``cd`` et ``dir``/``ls`` pour naviguer et vérifier la position dans le système de fichiers avant de lancer des commandes relatives.
+
+---
+
+Étape 21 & 22 : Création d'un Plan de Développement Détaillé
+-----------------------------------------------------------
+* **Objectif** : Conserver une trace écrite de l'évolution du projet, des décisions prises et des concepts appris.
+* **Actions Clés** :
+    * Création du fichier ``docs/PLAN_DE_DEVELOPPEMENT.rst``.
+    * Intégration de ce fichier dans la table des matières de la documentation Sphinx.
+    * Enrichissement du plan avec des détails sur les objectifs, actions et défis de chaque étape.
+
+---
+
+Étape 23 : Création d'un Document de Conception Technique
+----------------------------------------------------------
+* **Objectif** : Décrire l'architecture logicielle de manière formelle et visuelle.
+* **Actions Clés** :
+    * Création du fichier ``DESIGN.md``.
+    * Utilisation de "Diagrams as Code" avec la syntaxe **Mermaid** pour créer :
+        * Un **Diagramme des Composants**.
+        * Un **Diagramme de Séquence**.
+    * Identification et documentation des outils pour la génération automatique de diagrammes :
+        * ``pydeps`` pour le **Graphe de Dépendances**.
+        * ``pycallgraph2`` pour le **Graphe d'Appels**.
+
+---
+
+Étape 24 : Automatisation des Tâches avec un `Makefile`
+--------------------------------------------------------
+* **Objectif** : Simplifier l'utilisation du projet en centralisant les commandes courantes.
+* **Actions Clés** :
+    * Création d'un ``Makefile`` à la racine du projet.
+    * Définition de cibles (`targets`) pour les actions principales : ``install``, ``docs``, ``run``, ``predict``, ``update``, ``clean``.
+
+---
+
+Étape 25 & 26 : Intégration du Workflow de Développement avec Jules
+-------------------------------------------------------------------
+* **Objectif** : Tirer parti d'un assistant IA avancé (Jules) comme un pair-programmeur pour améliorer la qualité du code et accélérer le développement.
+* **Actions Clés** :
+    * Clarification que Jules a un accès en lecture au dépôt GitHub du projet.
+    * Définition d'un flux de travail où Jules est utilisé pour des tâches complexes : analyse d'impact, revue d'architecture, génération de tests, refactoring multi-fichiers et débogage avancé.
+* **Concepts Abordés** : Développement assisté par l'IA, Pair-programming avec une IA.
