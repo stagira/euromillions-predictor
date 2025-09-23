@@ -29,46 +29,51 @@ def analyse_frequence(historique_tirages: list[data_manager.Tirage]):
 
 class ModeleRandomForest:
     """
-    Encapsule la logique du modèle de Machine Learning "RandomForest".
+    Encapsule un comité de 5 modèles RandomForest pour prédire un tirage complet.
     """
     def __init__(self):
-        # On initialise le modèle, mais il n'est pas encore entraîné
-        self.modele = RandomForestClassifier(n_estimators=100, random_state=42)
+        # On crée un dictionnaire pour contenir nos 5 modèles, un par boule
+        self.modeles = {f'boule_{i}': RandomForestClassifier(n_estimators=100, random_state=42) for i in range(1, 6)}
         self.est_entraine = False
 
     def entrainer(self, historique_tirages: list[data_manager.Tirage]):
         """
-        Entraîne le modèle sur l'historique des données.
+        Entraîne les 5 modèles, chacun sur sa boule respective.
         """
-        print("\n🧠 Entraînement du modèle de Machine Learning...")
+        print("\n🧠 Entraînement du comité de 5 modèles de Machine Learning...")
 
-        # 1. On transforme notre liste d'objets Tirage en un format que Pandas comprend
         numeros_df = pd.DataFrame([t.numeros for t in historique_tirages], 
                                   columns=['boule_1', 'boule_2', 'boule_3', 'boule_4', 'boule_5'])
 
-        # 2. On prépare les données X et y, comme dans Colab
-        X = numeros_df[:-1]  # Toutes les boules, sauf pour le dernier tirage
-        y = numeros_df['boule_1'][1:] # La première boule du tirage suivant
+        X = numeros_df[:-1]
 
-        # 3. On entraîne le modèle
-        self.modele.fit(X, y)
+        # On entraîne chaque modèle sur sa cible
+        for i in range(1, 6):
+            nom_boule = f'boule_{i}'
+            print(f"   - Entraînement du spécialiste pour {nom_boule}...")
+            y = numeros_df[nom_boule][1:]
+            self.modeles[nom_boule].fit(X, y)
+        
         self.est_entraine = True
-        print("✅ Modèle entraîné avec succès !")
+        print("✅ Comité de modèles entraîné avec succès !")
 
     def predire(self, dernier_tirage: data_manager.Tirage):
         """
-        Prédit le premier numéro du prochain tirage en se basant sur le dernier.
+        Combine les prédictions des 5 modèles pour un tirage complet.
         """
         if not self.est_entraine:
-            return "Erreur: Le modèle doit être entraîné avant de faire une prédiction."
+            return "Erreur: Le modèle doit être entraîné."
 
-        # On met les données du dernier tirage au bon format pour le modèle
         donnees_a_predire = pd.DataFrame([dernier_tirage.numeros], 
                                          columns=['boule_1', 'boule_2', 'boule_3', 'boule_4', 'boule_5'])
-
-        # On fait la prédiction
-        prediction = self.modele.predict(donnees_a_predire)
-        probabilites = self.modele.predict_proba(donnees_a_predire)
-        confiance = np.max(probabilites)
-
-        return f"Le modèle prédit le numéro {prediction[0]} avec une confiance de {confiance*100:.2f}%"
+        
+        prediction_finale = []
+        # Chaque modèle spécialiste fait sa propre prédiction
+        for i in range(1, 6):
+            nom_boule = f'boule_{i}'
+            prediction = self.modeles[nom_boule].predict(donnees_a_predire)
+            prediction_finale.append(prediction[0])
+            
+        # On trie les numéros pour un affichage plus propre
+        prediction_finale.sort()
+        return f"Le comité de modèles prédit les 5 numéros suivants : {prediction_finale}"
