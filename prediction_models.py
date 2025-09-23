@@ -161,10 +161,10 @@ class ComiteDeModelesML:
         donnees_a_predire = donnees_a_predire[ordre_colonnes]
 
         # 5. Prédiction
-        pred_boules = [self.modeles_boules[f'boule_{i}'].predict(donnees_a_predire)[0] for i in range(1, 6)]
+        pred_boules = [int(self.modeles_boules[f'boule_{i}'].predict(donnees_a_predire)[0]) for i in range(1, 6)]
         pred_boules.sort()
 
-        pred_etoiles = [self.modeles_etoiles[f'etoile_{i}'].predict(donnees_a_predire)[0] for i in range(1, 3)]
+        pred_etoiles = [int(self.modeles_etoiles[f'etoile_{i}'].predict(donnees_a_predire)[0]) for i in range(1, 3)]
         pred_etoiles.sort()
 
         return pred_boules, pred_etoiles
