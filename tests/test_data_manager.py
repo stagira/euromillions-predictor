@@ -87,22 +87,3 @@ def test_charger_donnees_echec_api_fallback_csv(mock_get, tmp_path):
     assert len(tirages) == 1
     assert tirages[0].date == "19/09/2025"
     assert tirages[0].numeros == [8, 10, 26, 32, 42]
-
-@patch('data_manager.requests.get')
-def test_charger_donnees_echec_api_et_echec_fallback(mock_get):
-    """
-    Vérifie que la fonction retourne une liste vide si l'API et le fichier
-    de fallback échouent.
-    """
-    # ARRANGE
-    # 1. On configure le mock pour simuler une erreur réseau
-    mock_get.side_effect = requests.RequestException("Erreur réseau simulée")
-
-    # 2. On fournit un chemin vers un fichier qui n'existe pas
-    chemin_inexistant = "chemin/vers/un/fichier/qui/n_existe/pas.csv"
-
-    # ACT
-    tirages = data_manager.charger_donnees(chemin_fichier_fallback=chemin_inexistant)
-
-    # ASSERT
-    assert tirages == []

@@ -1,46 +1,29 @@
-# Dans backtest.py
-
+# backtest.py
 import data_manager
 import prediction_models
 import evaluation
-from tqdm import tqdm
+import logging
 
-def lancer_backtest(
-    modele_a_tester: prediction_models.ComiteDeModelesML,
-    historique_complet: list[data_manager.Tirage],
-    nombre_de_tests: int
-) -> tuple[float, float]:
-    """Lance une simulation de backtesting pour évaluer un modèle.
-
-    Cette fonction simule des prédictions sur une période passée. Pour chaque
-    pas de temps, elle entraîne le modèle sur un historique qui s'arrête avant
-    le tirage à prédire, fait une prédiction, et la compare au résultat réel.
-
-    Args:
-        modele_a_tester (prediction_models.ComiteDeModelesML): L'instance du
-            modèle à évaluer.
-        historique_complet (list[data_manager.Tirage]): L'historique complet
-            des tirages, du plus récent au plus ancien.
-        nombre_de_tests (int): Le nombre de tirages récents à utiliser pour
-            la simulation.
-
-    Returns:
-        tuple[float, float]: Un tuple contenant le score moyen pour les boules
-        et le score moyen pour les étoiles sur l'ensemble de la simulation.
+def lancer_backtest(modele_a_tester, historique_complet: list[data_manager.Tirage], nombre_de_tests: int):
     """
-    print(f"\n--- 🚀 Lancement du Backtesting sur les {nombre_de_tests} derniers tirages ---")
+    Lance une simulation de backtesting pour un MODÈLE DONNÉ.
+    Retourne les scores moyens pour les boules et les étoiles.
+    """
+    logging.info(f"--- 🚀 Lancement du Backtesting sur les {nombre_de_tests} derniers tirages ---")
     scores_boules = []
     scores_etoiles = []
 
-    for i in tqdm(range(nombre_de_tests), desc="Simulation temporelle", leave=False):
+    for i in range(nombre_de_tests):
         tirage_a_deviner = historique_complet[i]
         tirage_precedent_pour_predire = historique_complet[i + 1]
         donnees_entrainement = historique_complet[i + 2:]
 
         if len(donnees_entrainement) < 200:
+            logging.warning(f"Arrêt du backtest à l'itération {i} car la taille de l'historique d'entraînement est insuffisante.")
             break
 
-        # On utilise le modèle fourni en argument, on ne le crée plus ici
+        logging.debug(f"Backtest itération {i+1}/{nombre_de_tests}: entraînement sur {len(donnees_entrainement)} tirages.")
+
         modele_a_tester.entrainer(donnees_entrainement) 
         pred_boules, pred_etoiles = modele_a_tester.predire(tirage_precedent_pour_predire, donnees_entrainement)
         
@@ -51,5 +34,5 @@ def lancer_backtest(
     score_moyen_boules = sum(scores_boules) / len(scores_boules) if scores_boules else 0
     score_moyen_etoiles = sum(scores_etoiles) / len(scores_etoiles) if scores_etoiles else 0
     
-    # On retourne le résultat au lieu de juste l'imprimer
+    logging.info("--- ✅ Backtesting terminé ---")
     return score_moyen_boules, score_moyen_etoiles
