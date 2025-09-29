@@ -220,3 +220,9 @@ Ce document retrace les grandes étapes de la création et de l'amélioration de
         2.  Pousser le fichier sur le dépôt GitHub pour le rendre accessible à Jules.
         3.  Utiliser un "prompt d'amorçage" pour demander à Jules de lire et d'assimiler le contenu de ce fichier avant de commencer le travail.
 * **Concepts Abordés** : Amorçage de contexte (Context Priming) pour les LLMs, Utilisation de la documentation comme outil de transfert de connaissance.
+
+---
+
+Étape 31 : Briefing de GCA pour l'Implémentation de la Journalisation et de la Configuration
+---------------------------------------------------------------------------------------------
+Voici un prompt complet et détaillé que tu peux fournir à Jules/GCA. Il est structuré pour lui donner un maximum de contexte et des instructions précises, ce qui maximisera la qualité de sa réponse.
