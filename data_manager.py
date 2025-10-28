@@ -29,7 +29,7 @@ def charger_donnees(chemin_fichier='euromillions_results.csv'):
     Returns:
         list: Une liste d'objets Tirage.
     """
-    df = pd.read_csv(chemin_fichier, sep=';')
+    df = pd.read_csv(chemin_fichier, sep=';', dtype={'date_de_tirage': str})
     
     liste_tirages = []
     for index, row in df.iterrows():
