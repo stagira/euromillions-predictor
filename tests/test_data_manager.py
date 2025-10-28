@@ -3,6 +3,7 @@ import sys
 import os
 from unittest.mock import patch, Mock
 import pytest
+import requests
 
 # Ajoute le dossier parent au chemin
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

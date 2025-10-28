@@ -2,57 +2,63 @@
 import pandas as pd
 import requests 
 from datetime import datetime 
+import logging
+
+# --- Constantes et Configuration ---
+API_URL = "http://localhost:8000/euromillions-results"  # URL Fictive pour l'exemple
+
+# --- Fonctions de Parsing ---
+
+def _parser_date_api(date_str: str) -> str:
+    """Convertit une chaîne de date du format API (AAAA-MM-JJ) au format interne (JJ/MM/AAAA)."""
+    return datetime.strptime(date_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+
+def _parser_date_csv(date_str: str | int) -> str:
+    """Convertit une chaîne de date du format CSV (AAAAMMJJ) au format interne (JJ/MM/AAAA)."""
+    return datetime.strptime(str(date_str), "%Y%m%d").strftime("%d/%m/%Y")
+
+# --- Classe de Données ---
 
 class Tirage:
     """ Représente un seul tirage de l'Euromillions."""
     def __init__(self, date, numeros, etoiles):
-        """
-        Initialise un objet Tirage.
-        Args:
-            date (str): La date du tirage au format JJ/MM/AAAA.
-            numeros (list): Une liste de 5 entiers pour les numéros.
-            etoiles (list): Une liste de 2 entiers pour les étoiles.
-        """
         self.date = date
-        self.numeros = sorted(numeros) # On trie pour être cohérent
-        self.etoiles = sorted(etoiles) # On trie pour être cohérent
+        self.numeros = sorted(numeros)
+        self.etoiles = sorted(etoiles)
 
-# Dans data_manager.py
+# --- Fonction Principale de Chargement ---
 
-def charger_donnees(chemin_fichier='euromillions_results.csv'):
+def charger_donnees(chemin_fichier_fallback: str = 'euromillions_results.csv') -> list[Tirage]:
     """
-    Charge l'historique des tirages depuis un fichier CSV.
-    
-    Args:
-        chemin_fichier (str): Le chemin vers le fichier CSV.
-
-    Returns:
-        list: Une liste d'objets Tirage.
+    Charge l'historique des tirages, en priorisant l'API puis un fichier CSV.
     """
-    df = pd.read_csv(chemin_fichier, sep=';')
-    
-    liste_tirages = []
-    for index, row in df.iterrows():
-        date = row['date_de_tirage']
-        
-        # --- CORRECTION ICI ---
-        # On s'assure que toutes les boules et étoiles sont bien des nombres entiers
+    try:
+        reponse = requests.get(API_URL, timeout=5)
+        reponse.raise_for_status()
+        donnees_api = reponse.json()
+        liste_tirages = []
+        for tirage_json in donnees_api.get("draws", []):
+            date = _parser_date_api(tirage_json["date"])
+            numeros = [int(n) for n in tirage_json["numbers"].split(',')]
+            etoiles = [int(e) for e in tirage_json["stars"].split(',')]
+            liste_tirages.append(Tirage(date, numeros, etoiles))
+        logging.info("Données chargées avec succès depuis l'API.")
+        return liste_tirages
+    except (requests.RequestException, ValueError) as e:
+        logging.warning(f"L'API a échoué ({e}), tentative de chargement depuis le fichier CSV local.")
         try:
-            numeros = [
-                int(row['boule_1']), 
-                int(row['boule_2']), 
-                int(row['boule_3']), 
-                int(row['boule_4']), 
-                int(row['boule_5'])
-            ]
-            etoiles = [
-                int(row['etoile_1']), 
-                int(row['etoile_2'])
-            ]
-            
-            tirage = Tirage(date, numeros, etoiles)
-            liste_tirages.append(tirage)
-        except (ValueError, TypeError) as e:
-            print(f"⚠️ Avertissement : Ligne ignorée à l'index {index} car les données ne sont pas des nombres valides. Erreur: {e}")
-
-    return liste_tirages
+            df = pd.read_csv(chemin_fichier_fallback, sep=';')
+            liste_tirages = []
+            for index, row in df.iterrows():
+                try:
+                    date = _parser_date_csv(row['date_de_tirage'])
+                    numeros = [int(row[f'boule_{i}']) for i in range(1, 6)]
+                    etoiles = [int(row[f'etoile_{i}']) for i in range(1, 3)]
+                    liste_tirages.append(Tirage(date, numeros, etoiles))
+                except (ValueError, TypeError) as ex:
+                    logging.warning(f"Ligne ignorée (index {index}) dans le CSV : {ex}")
+            logging.info("Données chargées avec succès depuis le fichier CSV.")
+            return liste_tirages
+        except FileNotFoundError:
+            logging.error(f"Le fichier de fallback '{chemin_fichier_fallback}' est introuvable.")
+            return []
